@@ -25,22 +25,8 @@ Fast, lightweight statusline generator for **Antigravity CLI** and **Claude Code
 
 ## Installation
 
-### Build from source
-
-Ensure you have [Rust and Cargo](https://rustup.rs/) installed:
-
 ```bash
-git clone https://github.com/pombadev/agent-statusline.git
-cd agent-statusline
-cargo build --release
-```
-
-The optimized binary will be available at `target/release/agent-statusline`.
-
-To install directly into your `~/.cargo/bin`:
-
-```bash
-cargo install --path .
+cargo install --git https://github.com/pombadev/agent-statusline.git
 ```
 
 ---
