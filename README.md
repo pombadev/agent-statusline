@@ -96,4 +96,4 @@ agent-statusline --no-tag < state.json
 
 ## License
 
-MIT
+Apache-2.0
