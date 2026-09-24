@@ -35,7 +35,7 @@ fn extract_effort_from_label(label: &str) -> Option<&'static str> {
     }
 }
 
-pub fn render(json: &Value, home: &str, show_tag: bool, segments: &Segments) {
+pub fn render(json: &Value, home: &str, segments: &Segments) {
     // ── Model & Effort ──
     let model_val = &json["model"];
     let raw_display_name = model_val["display_name"]
@@ -319,7 +319,7 @@ pub fn render(json: &Value, home: &str, show_tag: bool, segments: &Segments) {
 
     let term_width = crate::utils::get_terminal_width(json);
 
-    if show_tag {
+    if segments.show("tag") {
         if let Some(last_rate) = rate_lines.last_mut() {
             crate::utils::attach_bottom_right_tag(last_rate, term_width);
         } else {

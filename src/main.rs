@@ -35,6 +35,7 @@ impl Segments {
             "extra" => 1 << 9,
             "current-3p" => 1 << 10,
             "weekly-3p" => 1 << 11,
+            "tag" => 1 << 12,
             _ => return None,
         })
     }
@@ -67,8 +68,6 @@ USAGE:
 OPTIONS:
     -a, --agy, --antigravity    Force Antigravity mode
     -c, --claude                Force Claude Code mode
-        --show-tag              Show generator tag (enabled by default)
-        --no-tag                Do not show generator tag
         --no-SEGMENT            Hide one segment (see names below)
         --show-SEGMENT          Show one segment (enabled by default)
     -h, --help                  Print help information
@@ -76,7 +75,7 @@ OPTIONS:
 
 SEGMENTS:
     model, ctx, dir, git, wt, act, rc,
-    current, weekly, extra, current-3p, weekly-3p",
+    current, weekly, extra, current-3p, weekly-3p, tag",
         env!("CARGO_PKG_VERSION")
     );
 }
@@ -84,7 +83,6 @@ SEGMENTS:
 fn main() {
     let args: Vec<String> = env::args().collect();
     let mut forced_mode: Option<Mode> = None;
-    let mut show_tag = true;
     let mut segments = Segments::default();
 
     for arg in &args[1..] {
@@ -99,8 +97,6 @@ fn main() {
             }
             "--claude" | "-c" => forced_mode = Some(Mode::Claude),
             "--agy" | "--antigravity" | "-a" => forced_mode = Some(Mode::Antigravity),
-            "--show-tag" | "--show-tag=true" => show_tag = true,
-            "--no-tag" | "--no-show-tag" | "--show-tag=false" => show_tag = false,
             _ => {
                 if let Some(name) = arg.strip_prefix("--no-") {
                     segments.set(name, false);
@@ -129,7 +125,7 @@ fn main() {
         if !segments.show("model") {
             name.clear();
         }
-        if show_tag {
+        if segments.show("tag") {
             let term_width = utils::get_terminal_width(&Value::Null);
             utils::attach_bottom_right_tag(&mut name, term_width);
         }
@@ -150,7 +146,7 @@ fn main() {
             if !segments.show("model") {
                 name.clear();
             }
-            if show_tag {
+            if segments.show("tag") {
                 let term_width = utils::get_terminal_width(&Value::Null);
                 utils::attach_bottom_right_tag(&mut name, term_width);
             }
@@ -178,7 +174,7 @@ fn main() {
     let home = env::var("HOME").unwrap_or_default();
 
     match mode {
-        Mode::Claude => claude::render(&json, &home, show_tag, &segments),
-        Mode::Antigravity => antigravity::render(&json, &home, show_tag, &segments),
+        Mode::Claude => claude::render(&json, &home, &segments),
+        Mode::Antigravity => antigravity::render(&json, &home, &segments),
     }
 }

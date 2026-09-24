@@ -10,7 +10,7 @@ use crate::git::get_git_info;
 use crate::time::{format_duration, format_epoch_time, parse_to_epoch};
 use crate::utils::{get_f64, get_i64};
 
-pub fn render(json: &Value, home: &str, show_tag: bool, segments: &Segments) {
+pub fn render(json: &Value, home: &str, segments: &Segments) {
     // ── Model & Effort ──
     let model_val = &json["model"];
     let raw_display_name = model_val["display_name"]
@@ -309,7 +309,7 @@ pub fn render(json: &Value, home: &str, show_tag: bool, segments: &Segments) {
 
     let term_width = crate::utils::get_terminal_width(json);
 
-    if show_tag {
+    if segments.show("tag") {
         if let Some(last_rate) = rate_lines.last_mut() {
             crate::utils::attach_bottom_right_tag(last_rate, term_width);
         } else {
