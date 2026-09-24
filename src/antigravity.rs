@@ -4,6 +4,7 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::Segments;
 use crate::colors::*;
 use crate::git::get_git_info;
 use crate::time::{format_duration, format_epoch_time, parse_to_epoch};
@@ -34,7 +35,7 @@ fn extract_effort_from_label(label: &str) -> Option<&'static str> {
     }
 }
 
-pub fn render(json: &Value, home: &str, show_tag: bool) {
+pub fn render(json: &Value, home: &str, show_tag: bool, segments: &Segments) {
     // ── Model & Effort ──
     let model_val = &json["model"];
     let raw_display_name = model_val["display_name"]
@@ -149,69 +150,35 @@ pub fn render(json: &Value, home: &str, show_tag: bool) {
         _ => DIM,
     };
 
-    let mut line1 = String::with_capacity(256);
-    line1.push_str(BLUE);
-    line1.push_str(&model_label);
-    line1.push_str(RESET);
-
-    if !effort.is_empty() {
-        line1.push_str(DIM);
-        line1.push(':');
-        line1.push_str(RESET);
-        line1.push_str(effort_color);
-        line1.push_str(&effort);
-        line1.push_str(RESET);
+    let mut main_parts = Vec::new();
+    if segments.show("model") {
+        main_parts.push(format!(
+            "{BLUE}{model_label}{RESET}{DIM}:{RESET}{effort_color}{effort}{RESET}"
+        ));
     }
-
-    if let Some(pct) = ctx_pct {
-        line1.push_str(SEP);
-        line1.push_str(DIM);
-        line1.push_str("ctx:");
-        line1.push_str(RESET);
-        line1.push_str(color_for_pct(pct));
-        line1.push_str(&pct.to_string());
-        line1.push('%');
-        line1.push_str(RESET);
+    if segments.show("ctx") {
+        if let Some(pct) = ctx_pct {
+            main_parts.push(format!(
+                "{DIM}ctx:{RESET}{}{pct}%{RESET}",
+                color_for_pct(pct)
+            ));
+        }
     }
-
-    line1.push_str(SEP);
-    line1.push_str(DIM);
-    line1.push_str("dir:");
-    line1.push_str(RESET);
-    line1.push_str(CYAN);
-    line1.push_str(dirname);
-    line1.push_str(RESET);
-
-    if !git_branch.is_empty() {
-        line1.push_str(SEP);
-        line1.push_str(DIM);
-        line1.push_str("git:");
-        line1.push_str(RESET);
-        line1.push_str(GREEN);
-        line1.push_str(&git_branch);
-        line1.push_str(RESET);
-        line1.push_str(RED);
-        line1.push_str(&git_dirty);
-        line1.push_str(RESET);
+    if segments.show("dir") {
+        main_parts.push(format!("{DIM}dir:{RESET}{CYAN}{dirname}{RESET}"));
     }
-
-    if !git_worktree.is_empty() {
-        line1.push_str(SEP);
-        line1.push_str(YELLOW);
-        line1.push_str("wt:");
-        line1.push_str(git_worktree);
-        line1.push_str(RESET);
+    if segments.show("git") && !git_branch.is_empty() {
+        main_parts.push(format!(
+            "{DIM}git:{RESET}{GREEN}{git_branch}{RESET}{RED}{git_dirty}{RESET}"
+        ));
     }
-
-    if !session_duration.is_empty() {
-        line1.push_str(SEP);
-        line1.push_str(DIM);
-        line1.push_str("act:");
-        line1.push_str(RESET);
-        line1.push_str(WHITE);
-        line1.push_str(&session_duration);
-        line1.push_str(RESET);
+    if segments.show("wt") && !git_worktree.is_empty() {
+        main_parts.push(format!("{YELLOW}wt:{git_worktree}{RESET}"));
     }
+    if segments.show("act") && !session_duration.is_empty() {
+        main_parts.push(format!("{DIM}act:{RESET}{WHITE}{session_duration}{RESET}"));
+    }
+    let mut line1 = main_parts.join(SEP);
 
     // ── Quota & Rate Limits ──
     let bar_width = 10;
@@ -308,6 +275,16 @@ pub fn render(json: &Value, home: &str, show_tag: bool) {
         ];
 
         for (label, is_session, cand_list, pattern) in targets {
+            let segment = match label {
+                "current" => "current",
+                "weekly" => "weekly",
+                "current (3p)" => "current-3p",
+                "weekly (3p)" => "weekly-3p",
+                _ => unreachable!(),
+            };
+            if !segments.show(segment) {
+                continue;
+            }
             if let Some((pct, reset_epoch)) = parse_entry(cand_list, pattern) {
                 let mut reset_str = String::new();
                 if let Some(epoch) = reset_epoch {
@@ -352,6 +329,9 @@ pub fn render(json: &Value, home: &str, show_tag: bool) {
 
     print!("{}", line1);
     if !rate_lines.is_empty() {
-        print!("\n{}", rate_lines.join("\n"));
+        if !line1.is_empty() {
+            print!("\n");
+        }
+        print!("{}", rate_lines.join("\n"));
     }
 }

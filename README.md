@@ -79,6 +79,9 @@ agent-statusline --claude < state.json
 
 # Hide generator attribution tag
 agent-statusline --no-tag < state.json
+
+# Hide selected segments
+agent-statusline --no-ctx --no-git --no-weekly < state.json
 ```
 
 ### Options
@@ -89,8 +92,12 @@ agent-statusline --no-tag < state.json
 | `-c`, `--claude` | Force Claude Code mode |
 | `--show-tag` | Show generator tag (enabled by default) |
 | `--no-tag` | Do not show generator tag |
+| `--no-SEGMENT` | Hide a segment |
+| `--show-SEGMENT` | Show a segment (the default); later flags take precedence |
 | `-h`, `--help` | Print help information |
 | `-V`, `-v`, `--version` | Print version information |
+
+Segment names: `model` (includes effort), `ctx`, `dir`, `git`, `wt`, `act`, `rc` (Claude only), `current`, `weekly`, `extra` (Claude only), `current-3p`, and `weekly-3p` (Antigravity only).
 
 ---
 

@@ -15,6 +15,47 @@ enum Mode {
     Antigravity,
 }
 
+#[derive(Default)]
+struct Segments {
+    hidden: u16,
+}
+
+impl Segments {
+    fn bit(name: &str) -> Option<u16> {
+        Some(match name {
+            "model" => 1 << 0,
+            "ctx" => 1 << 1,
+            "dir" => 1 << 2,
+            "git" => 1 << 3,
+            "wt" => 1 << 4,
+            "act" => 1 << 5,
+            "rc" => 1 << 6,
+            "current" => 1 << 7,
+            "weekly" => 1 << 8,
+            "extra" => 1 << 9,
+            "current-3p" => 1 << 10,
+            "weekly-3p" => 1 << 11,
+            _ => return None,
+        })
+    }
+
+    fn set(&mut self, name: &str, show: bool) -> bool {
+        let Some(bit) = Self::bit(name) else {
+            return false;
+        };
+        if show {
+            self.hidden &= !bit;
+        } else {
+            self.hidden |= bit;
+        }
+        true
+    }
+
+    fn show(&self, name: &str) -> bool {
+        Self::bit(name).is_some_and(|bit| self.hidden & bit == 0)
+    }
+}
+
 fn print_help() {
     println!(
         "agent-statusline {}
@@ -28,8 +69,14 @@ OPTIONS:
     -c, --claude                Force Claude Code mode
         --show-tag              Show generator tag (enabled by default)
         --no-tag                Do not show generator tag
+        --no-SEGMENT            Hide one segment (see names below)
+        --show-SEGMENT          Show one segment (enabled by default)
     -h, --help                  Print help information
-    -V, -v, --version           Print version information",
+    -V, -v, --version           Print version information
+
+SEGMENTS:
+    model, ctx, dir, git, wt, act, rc,
+    current, weekly, extra, current-3p, weekly-3p",
         env!("CARGO_PKG_VERSION")
     );
 }
@@ -38,6 +85,7 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     let mut forced_mode: Option<Mode> = None;
     let mut show_tag = true;
+    let mut segments = Segments::default();
 
     for arg in &args[1..] {
         match arg.as_str() {
@@ -53,7 +101,13 @@ fn main() {
             "--agy" | "--antigravity" | "-a" => forced_mode = Some(Mode::Antigravity),
             "--show-tag" | "--show-tag=true" => show_tag = true,
             "--no-tag" | "--no-show-tag" | "--show-tag=false" => show_tag = false,
-            _ => {}
+            _ => {
+                if let Some(name) = arg.strip_prefix("--no-") {
+                    segments.set(name, false);
+                } else if let Some(name) = arg.strip_prefix("--show-") {
+                    segments.set(name, true);
+                }
+            }
         }
     }
 
@@ -72,6 +126,9 @@ fn main() {
             "Gemini"
         })
         .to_string();
+        if !segments.show("model") {
+            name.clear();
+        }
         if show_tag {
             let term_width = utils::get_terminal_width(&Value::Null);
             utils::attach_bottom_right_tag(&mut name, term_width);
@@ -90,6 +147,9 @@ fn main() {
                 "Gemini"
             })
             .to_string();
+            if !segments.show("model") {
+                name.clear();
+            }
             if show_tag {
                 let term_width = utils::get_terminal_width(&Value::Null);
                 utils::attach_bottom_right_tag(&mut name, term_width);
@@ -118,7 +178,7 @@ fn main() {
     let home = env::var("HOME").unwrap_or_default();
 
     match mode {
-        Mode::Claude => claude::render(&json, &home, show_tag),
-        Mode::Antigravity => antigravity::render(&json, &home, show_tag),
+        Mode::Claude => claude::render(&json, &home, show_tag, &segments),
+        Mode::Antigravity => antigravity::render(&json, &home, show_tag, &segments),
     }
 }

@@ -4,12 +4,13 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::Segments;
 use crate::colors::*;
 use crate::git::get_git_info;
 use crate::time::{format_duration, format_epoch_time, parse_to_epoch};
 use crate::utils::{get_f64, get_i64};
 
-pub fn render(json: &Value, home: &str, show_tag: bool) {
+pub fn render(json: &Value, home: &str, show_tag: bool, segments: &Segments) {
     // ── Model & Effort ──
     let model_val = &json["model"];
     let raw_display_name = model_val["display_name"]
@@ -126,68 +127,33 @@ pub fn render(json: &Value, home: &str, show_tag: bool) {
         _ => DIM,
     };
 
-    let mut line1 = String::with_capacity(256);
-    line1.push_str(BLUE);
-    line1.push_str(model_label);
-    line1.push_str(RESET);
-
-    if !effort.is_empty() {
-        line1.push_str(DIM);
-        line1.push(':');
-        line1.push_str(RESET);
-        line1.push_str(effort_color);
-        line1.push_str(&effort);
-        line1.push_str(RESET);
+    let mut main_parts = Vec::new();
+    if segments.show("model") {
+        main_parts.push(format!(
+            "{BLUE}{model_label}{RESET}{DIM}:{RESET}{effort_color}{effort}{RESET}"
+        ));
     }
-
-    if let Some(pct) = ctx_pct {
-        line1.push_str(SEP);
-        line1.push_str(DIM);
-        line1.push_str("ctx:");
-        line1.push_str(RESET);
-        line1.push_str(color_for_pct(pct));
-        line1.push_str(&pct.to_string());
-        line1.push('%');
-        line1.push_str(RESET);
+    if segments.show("ctx") {
+        if let Some(pct) = ctx_pct {
+            main_parts.push(format!(
+                "{DIM}ctx:{RESET}{}{pct}%{RESET}",
+                color_for_pct(pct)
+            ));
+        }
     }
-
-    line1.push_str(SEP);
-    line1.push_str(DIM);
-    line1.push_str("dir:");
-    line1.push_str(RESET);
-    line1.push_str(CYAN);
-    line1.push_str(dirname);
-    line1.push_str(RESET);
-
-    if !git_branch.is_empty() {
-        line1.push_str(SEP);
-        line1.push_str(DIM);
-        line1.push_str("git:");
-        line1.push_str(RESET);
-        line1.push_str(GREEN);
-        line1.push_str(&git_branch);
-        line1.push_str(RESET);
-        line1.push_str(RED);
-        line1.push_str(&git_dirty);
-        line1.push_str(RESET);
+    if segments.show("dir") {
+        main_parts.push(format!("{DIM}dir:{RESET}{CYAN}{dirname}{RESET}"));
     }
-
-    if !worktree.is_empty() {
-        line1.push_str(SEP);
-        line1.push_str(YELLOW);
-        line1.push_str("wt:");
-        line1.push_str(&worktree);
-        line1.push_str(RESET);
+    if segments.show("git") && !git_branch.is_empty() {
+        main_parts.push(format!(
+            "{DIM}git:{RESET}{GREEN}{git_branch}{RESET}{RED}{git_dirty}{RESET}"
+        ));
     }
-
-    if !session_duration.is_empty() {
-        line1.push_str(SEP);
-        line1.push_str(DIM);
-        line1.push_str("act:");
-        line1.push_str(RESET);
-        line1.push_str(WHITE);
-        line1.push_str(&session_duration);
-        line1.push_str(RESET);
+    if segments.show("wt") && !worktree.is_empty() {
+        main_parts.push(format!("{YELLOW}wt:{worktree}{RESET}"));
+    }
+    if segments.show("act") && !session_duration.is_empty() {
+        main_parts.push(format!("{DIM}act:{RESET}{WHITE}{session_duration}{RESET}"));
     }
 
     // Remote Session Bridge (rc)
@@ -197,12 +163,14 @@ pub fn render(json: &Value, home: &str, show_tag: bool) {
         .or_else(|| env::var("CLAUDE_CODE_BRIDGE_SESSION_ID").ok())
         .unwrap_or_default();
 
-    if !bridge_session.is_empty() {
-        line1.push_str(&format!(
-            "{}rc:\x1b]8;;https://claude.ai/code/{}\x1b\\{}\x1b]8;;\x1b\\",
-            SEP, bridge_session, bridge_session
+    if segments.show("rc") && !bridge_session.is_empty() {
+        main_parts.push(format!(
+            "rc:\x1b]8;;https://claude.ai/code/{}\x1b\\{}\x1b]8;;\x1b\\",
+            bridge_session, bridge_session
         ));
     }
+
+    let mut line1 = main_parts.join(SEP);
 
     // ── Rates from .rate_limits or cache ──
     let bar_width = 10;
@@ -261,7 +229,7 @@ pub fn render(json: &Value, home: &str, show_tag: bool) {
         String::new()
     };
 
-    if let Some(pct) = five_pct {
+    if let Some(pct) = five_pct.filter(|_| segments.show("current")) {
         let mut reset_str = String::new();
         if let Some(epoch) = five_reset {
             reset_str = format_epoch_time(epoch, "time");
@@ -283,7 +251,7 @@ pub fn render(json: &Value, home: &str, show_tag: bool) {
         rate_lines.push(line);
     }
 
-    if let Some(pct) = seven_pct {
+    if let Some(pct) = seven_pct.filter(|_| segments.show("weekly")) {
         let mut reset_str = String::new();
         if let Some(epoch) = seven_reset {
             reset_str = format_epoch_time(epoch, "datetime");
@@ -304,7 +272,7 @@ pub fn render(json: &Value, home: &str, show_tag: bool) {
         rate_lines.push(line);
     }
 
-    if extra_enabled {
+    if extra_enabled && segments.show("extra") {
         if let (Some(used_raw), Some(limit_raw)) = (extra_used_raw, extra_limit_raw) {
             let extra_pct = extra_utilization.map(|p| p.round() as i64).unwrap_or(0);
             let extra_used = used_raw / 100.0;
@@ -351,6 +319,9 @@ pub fn render(json: &Value, home: &str, show_tag: bool) {
 
     print!("{}", line1);
     if !rate_lines.is_empty() {
-        print!("\n\n{}", rate_lines.join("\n"));
+        if !line1.is_empty() {
+            print!("\n\n");
+        }
+        print!("{}", rate_lines.join("\n"));
     }
 }
