@@ -6,20 +6,20 @@ Fast, lightweight statusline generator for **Antigravity CLI** and **Claude Code
 
 ## Features
 
-- ⚡ **Ultra Fast & Lightweight**: Compiled Rust binary with minimal overhead and zero lag in your shell/agent loops.
-- 🤖 **Multi-Agent Support**: Automatic detection for both **Antigravity CLI** (`agy`) and **Claude Code** (`claude`), with manual overrides available.
-- 📊 **Rich Metrics**:
+- **Ultra Fast & Lightweight**: Compiled Rust binary with minimal overhead and zero lag in your shell/agent loops.
+- **Multi-Agent Support**: Automatic detection for both **Antigravity CLI** (`agy`) and **Claude Code** (`claude`), with manual overrides available.
+- **Rich Metrics**:
   - Active model name & reasoning effort level (`high`, `medium`, `low`, etc.)
   - Context window usage percentage with dynamic color coding
   - Current directory name
   - Git branch and dirty state indicator (`*`)
   - Git worktree detection
   - Total activity / session duration
-- ⏳ **Quota & Rate Limits**:
+- **Quota & Rate Limits**:
   - Visual dot progress bars (`●` / `○`) for current session and weekly usage
   - Accurate countdown / reset timestamps (`⟳`)
   - 3rd party model quota handling
-- ⚙️ **Configurable**: Toggle bottom-right generator attribution tag (`--no-tag`, `--show-tag`).
+- **Configurable**: Toggle bottom-right generator attribution tag (`--no-tag`, `--show-tag`).
 
 ---
 
