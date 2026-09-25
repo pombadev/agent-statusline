@@ -4,7 +4,7 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::Segments;
+use crate::cli::Segments;
 use crate::colors::*;
 use crate::git::get_git_info;
 use crate::time::{format_duration, format_epoch_time, parse_to_epoch};
