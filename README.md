@@ -12,7 +12,7 @@ Fast, lightweight statusline generator for **Antigravity CLI** and **Claude Code
   - Active model name & reasoning effort level (`high`, `medium`, `low`, etc.)
   - Context window usage percentage with dynamic color coding
   - Current directory name
-  - Git branch and dirty state indicator (`*`)
+  - Git branch and dirty state indicator (`*`), with the dirty count cached for up to 5 seconds
   - Git worktree detection
   - Total activity / session duration
 - **Quota & Rate Limits**:

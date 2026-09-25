@@ -1,6 +1,10 @@
+use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+const DIRTY_CACHE_SECS: u64 = 5;
 
 pub fn find_git_dir(start: &Path) -> Option<PathBuf> {
     let mut curr = start.to_path_buf();
@@ -45,6 +49,71 @@ pub fn get_branch_from_git_dir(git_path: &Path) -> Option<String> {
     } else {
         None
     }
+}
+
+fn dirty_cache_path(git_path: &Path) -> Option<PathBuf> {
+    let base = match env::var("XDG_RUNTIME_DIR") {
+        Ok(dir) if !dir.is_empty() => PathBuf::from(dir),
+        _ => PathBuf::from(env::var("HOME").ok()?).join(".cache"),
+    };
+    // FNV-1a so cache names stay stable across runs
+    let mut hash: u64 = 0xcbf29ce484222325;
+    for b in git_path.to_string_lossy().as_bytes() {
+        hash ^= *b as u64;
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    Some(
+        base.join("agent-statusline")
+            .join(format!("git-{:x}.dirty", hash)),
+    )
+}
+
+fn dirty_count(git_path: &Path, cwd_path: &Path) -> Option<u64> {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .ok()
+        .map(|d| d.as_secs());
+    let cache_path = dirty_cache_path(git_path);
+
+    if let (Some(now), Some(cache_path)) = (now, cache_path.as_deref()) {
+        if let Ok(content) = fs::read_to_string(cache_path) {
+            let mut parts = content.split_whitespace();
+            let ts = parts.next().and_then(|s| s.parse::<u64>().ok());
+            let count = parts.next().and_then(|s| s.parse::<u64>().ok());
+            if let (Some(ts), Some(count)) = (ts, count) {
+                if now.saturating_sub(ts) <= DIRTY_CACHE_SECS {
+                    return Some(count);
+                }
+            }
+        }
+    }
+
+    let output = Command::new("git")
+        .args([
+            "-C",
+            cwd_path.to_str().unwrap_or("."),
+            "--no-optional-locks",
+            "status",
+            "--porcelain",
+            "-uno",
+        ])
+        .stderr(Stdio::null())
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let count = stdout.lines().filter(|l| !l.trim().is_empty()).count() as u64;
+
+    if let (Some(now), Some(cache_path)) = (now, cache_path) {
+        if let Some(dir) = cache_path.parent() {
+            if fs::create_dir_all(dir).is_ok() {
+                let _ = fs::write(cache_path, format!("{} {}", now, count));
+            }
+        }
+    }
+    Some(count)
 }
 
 pub fn get_git_info(
@@ -122,24 +191,9 @@ pub fn get_git_info(
     if !git_branch.is_empty() {
         if let Some(dirty) = vcs_dirty {
             git_dirty = dirty.to_string();
-        } else if let Ok(output) = Command::new("git")
-            .args([
-                "-C",
-                cwd_path.to_str().unwrap_or("."),
-                "--no-optional-locks",
-                "status",
-                "--porcelain",
-                "-uno",
-            ])
-            .stderr(Stdio::null())
-            .output()
-        {
-            if output.status.success() {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                let count = stdout.lines().filter(|l| !l.trim().is_empty()).count();
-                if count > 0 {
-                    git_dirty = format!("*{}", count);
-                }
+        } else if let Some(count) = dirty_count(&git_path, cwd_path) {
+            if count > 0 {
+                git_dirty = format!("*{}", count);
             }
         }
     }
