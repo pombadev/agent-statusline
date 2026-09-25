@@ -107,8 +107,8 @@ fn main() {
         }
     }
 
-    let mut input = String::new();
-    if io::stdin().read_to_string(&mut input).is_err() || input.trim().is_empty() {
+    let mut input = Vec::new();
+    if io::stdin().read_to_end(&mut input).is_err() || input.trim_ascii().is_empty() {
         let mode = forced_mode.unwrap_or_else(|| {
             if args.get(0).map(|s| s.contains("claude")).unwrap_or(false) {
                 Mode::Claude
@@ -133,7 +133,7 @@ fn main() {
         return;
     }
 
-    let json: Value = match serde_json::from_str(&input) {
+    let json: Value = match serde_json::from_slice(&input) {
         Ok(v) => v,
         Err(_) => {
             let mode = forced_mode.unwrap_or(Mode::Antigravity);

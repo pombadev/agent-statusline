@@ -67,36 +67,46 @@ pub fn render(json: &Value, home: &str, segments: &Segments) {
     }
 
     // ── CWD & Git ──
-    let current_dir_fallback = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    let cwd_str = json["cwd"]
-        .as_str()
-        .filter(|s| !s.is_empty())
-        .or_else(|| {
-            json["workspace"]["current_dir"]
-                .as_str()
-                .filter(|s| !s.is_empty())
-        })
-        .or_else(|| {
-            json["workspace"]["project_dir"]
-                .as_str()
-                .filter(|s| !s.is_empty())
-        })
-        .unwrap_or_else(|| current_dir_fallback.to_str().unwrap_or("."));
+    let mut dirname = String::new();
+    let mut git_branch = String::new();
+    let mut git_dirty = String::new();
 
-    let cwd_path = Path::new(cwd_str);
-    let dirname = cwd_path
-        .file_name()
-        .and_then(|f| f.to_str())
-        .unwrap_or(cwd_str);
+    if segments.show("dir") || segments.show("git") {
+        let current_dir_fallback = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        let cwd_str = json["cwd"]
+            .as_str()
+            .filter(|s| !s.is_empty())
+            .or_else(|| {
+                json["workspace"]["current_dir"]
+                    .as_str()
+                    .filter(|s| !s.is_empty())
+            })
+            .or_else(|| {
+                json["workspace"]["project_dir"]
+                    .as_str()
+                    .filter(|s| !s.is_empty())
+            })
+            .unwrap_or_else(|| current_dir_fallback.to_str().unwrap_or("."));
+        let cwd_path = Path::new(cwd_str);
 
-    let vcs_branch = json["vcs"]["branch"].as_str();
-    let vcs_dirty = if let Some(b) = json["vcs"]["dirty"].as_bool() {
-        if b { Some("*") } else { Some("") }
-    } else {
-        json["vcs"]["dirty"].as_str()
-    };
+        if segments.show("dir") {
+            dirname = cwd_path
+                .file_name()
+                .and_then(|f| f.to_str())
+                .unwrap_or(cwd_str)
+                .to_string();
+        }
 
-    let (git_branch, git_dirty) = get_git_info(cwd_path, vcs_branch, vcs_dirty);
+        if segments.show("git") {
+            let vcs_branch = json["vcs"]["branch"].as_str();
+            let vcs_dirty = if let Some(b) = json["vcs"]["dirty"].as_bool() {
+                if b { Some("*") } else { Some("") }
+            } else {
+                json["vcs"]["dirty"].as_str()
+            };
+            (git_branch, git_dirty) = get_git_info(cwd_path, vcs_branch, vcs_dirty);
+        }
+    }
 
     // Worktree
     let mut worktree = String::new();
@@ -157,13 +167,17 @@ pub fn render(json: &Value, home: &str, segments: &Segments) {
     }
 
     // Remote Session Bridge (rc)
-    let bridge_session = json["remote"]["session_id"]
-        .as_str()
-        .map(|s| s.to_string())
-        .or_else(|| env::var("CLAUDE_CODE_BRIDGE_SESSION_ID").ok())
-        .unwrap_or_default();
+    let bridge_session = if segments.show("rc") {
+        json["remote"]["session_id"]
+            .as_str()
+            .map(|s| s.to_string())
+            .or_else(|| env::var("CLAUDE_CODE_BRIDGE_SESSION_ID").ok())
+            .unwrap_or_default()
+    } else {
+        String::new()
+    };
 
-    if segments.show("rc") && !bridge_session.is_empty() {
+    if !bridge_session.is_empty() {
         main_parts.push(format!(
             "rc:\x1b]8;;https://claude.ai/code/{}\x1b\\{}\x1b]8;;\x1b\\",
             bridge_session, bridge_session
@@ -307,9 +321,8 @@ pub fn render(json: &Value, home: &str, segments: &Segments) {
         }
     }
 
-    let term_width = crate::utils::get_terminal_width(json);
-
     if segments.show("tag") {
+        let term_width = crate::utils::get_terminal_width(json);
         if let Some(last_rate) = rate_lines.last_mut() {
             crate::utils::attach_bottom_right_tag(last_rate, term_width);
         } else {
@@ -317,11 +330,11 @@ pub fn render(json: &Value, home: &str, segments: &Segments) {
         }
     }
 
-    print!("{}", line1);
     if !rate_lines.is_empty() {
         if !line1.is_empty() {
-            print!("\n\n");
+            line1.push_str("\n\n");
         }
-        print!("{}", rate_lines.join("\n"));
+        line1.push_str(&rate_lines.join("\n"));
     }
+    print!("{}", line1);
 }

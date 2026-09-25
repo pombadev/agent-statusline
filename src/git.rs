@@ -1,6 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 pub fn find_git_dir(start: &Path) -> Option<PathBuf> {
     let mut curr = start.to_path_buf();
@@ -83,6 +83,7 @@ pub fn get_git_info(
                 "--short",
                 "HEAD",
             ])
+            .stderr(Stdio::null())
             .output()
         {
             if output.status.success() {
@@ -100,6 +101,7 @@ pub fn get_git_info(
                 "--short",
                 "HEAD",
             ])
+            .stderr(Stdio::null())
             .output()
         {
             if output.status.success() {
@@ -118,7 +120,9 @@ pub fn get_git_info(
 
     let mut git_dirty = String::new();
     if !git_branch.is_empty() {
-        if let Ok(output) = Command::new("git")
+        if let Some(dirty) = vcs_dirty {
+            git_dirty = dirty.to_string();
+        } else if let Ok(output) = Command::new("git")
             .args([
                 "-C",
                 cwd_path.to_str().unwrap_or("."),
@@ -127,6 +131,7 @@ pub fn get_git_info(
                 "--porcelain",
                 "-uno",
             ])
+            .stderr(Stdio::null())
             .output()
         {
             if output.status.success() {
